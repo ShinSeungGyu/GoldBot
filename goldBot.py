@@ -16,12 +16,14 @@ API_KEY = f"Bearer {os.getenv('LOSTARK_API_KEY')}"
 intents = discord.Intents.default()
 intents.message_content = True  # 필수!
 bot = commands.Bot(command_prefix='!', intents=intents)
+kst = timezone(timedelta(hours=9))
 
 def get_gold_islands(): #골드 섬 정보 가져오기
     url = 'https://developer-lostark.game.onstove.com/gamecontents/calendar'
     headers = {'accept': 'application/json', 'authorization': API_KEY}
     response = requests.get(url, headers=headers)
-    now = datetime.now().strftime("%Y-%m-%d") #2026-03-10
+    now = datetime.now(kst).strftime("%Y-%m-%d")
+    print(now)
     
     if response.status_code == 200:
         gold_islands = []
@@ -44,9 +46,7 @@ def get_gold_islands(): #골드 섬 정보 가져오기
         return gold_islands
     return None
 
-
-KST = timezone(timedelta(hours=9))
-notification_time = time(hour=10, minute=30, tzinfo=KST)
+notification_time = time(hour=10, minute=30, tzinfo=kst)
 # 한국 시간 10시 30분에 맞춰 설정
 @tasks.loop(time=notification_time) #매일 10시 30분마다 각 서버의 알림채널에 메시지 전송
 async def check_islands():
@@ -165,6 +165,7 @@ async def search_lostark_auction(acc, base, option1, value1, option2, value2):
 scheduled_times = [time(hour=h, minute=0, second=0) for h in range(24)]
 @tasks.loop(time=scheduled_times)
 async def auction_acc():
+    print("악세 검색 시작")
     msg =f"📢 현재 딜러 악세 알림!\n"
     deal_search_list = [
         [200010, 17000, 41, 160, 42, 200],  #목걸이 중상
