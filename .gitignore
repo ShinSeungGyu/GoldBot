@@ -1,3 +1,22 @@
-.env
 test.py
-lostark_auction.db
+
+# Python 컴파일 파일
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 가상환경 (Virtual Environment)
+venv/
+.venv/
+env/
+
+# 데이터베이스 (SQLite 등)
+*.db
+*.sqlite3
+
+# 설정 및 환경 변수 (API 키 포함)
+.env
+
+# 로그 파일
+*.log
