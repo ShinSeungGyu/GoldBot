@@ -1,36 +1,30 @@
-import os
 import discord
-from goldbot import check_islands
-from auction import auction_acc
 from discord.ext import commands
-from datetime import timezone, timedelta, time
+import asyncio
+from config import TOKEN # bot 인스턴스는 여기서 만들지 않고 app.py에서 직접 생성하는 게 좋습니다.
 
-
-# 설정
-TOKEN = os.getenv('DISCORD_TOKEN')
-API_KEY = f"Bearer {os.getenv('LOSTARK_API_KEY')}"
-
+# 1. 봇 인스턴스 설정
 intents = discord.Intents.default()
 intents.message_content = True  # 필수!
 bot = commands.Bot(command_prefix='!', intents=intents)
-kst = timezone(timedelta(hours=9))
-notification_time = time(hour=10, minute=30, tzinfo=kst)
-    
+
+# 2. Cog 로드 함수
+async def load_extensions():
+    # cogs 폴더 안에 있는 goldbot.py와 auction.py를 불러옵니다.
+    # 파일명이 cogs/goldbot.py, cogs/auction.py 라고 가정합니다.
+    extensions = ['cogs.goldbot', 'cogs.auction']
+    for ext in extensions:
+        await bot.load_extension(ext)
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user.name}')
-    if not check_islands.is_running():
-        check_islands.start()
-    if not auction_acc.is_running():
-        auction_acc.start()
+    # 이제 task 시작은 각 Cog의 __init__에서 처리하므로 여기서 호출할 필요가 없습니다.
 
-@bot.event
-async def on_message(message):
-    # 1. 봇이 보낸 메시지인지 확인 (중요! 무한 루프 방지)
-    if message.author == bot.user:
-        return
-    # 2. 이 줄이 있어야 bot.command로 만든 명령어들이 정상 작동합니다.
-    await bot.process_commands(message)
+async def main():
+    async with bot:
+        await load_extensions()
+        await bot.start(TOKEN)
 
-
-bot.run(TOKEN) #봇 가동
+if __name__ == "__main__":
+    asyncio.run(main())
