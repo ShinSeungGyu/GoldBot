@@ -40,3 +40,19 @@ class AuctionDB:
                 VALUES (?, ?, ?)
             ''', (option_name, save_price, now))
             conn.commit()
+
+    def get_last_price(self, option_name):
+        """실제 가격 데이터(0보다 큰 값) 중 가장 최근 기록을 가져옵니다."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # WHERE 절에 buy_price > 0 조건을 추가합니다.
+            cursor.execute('''
+                SELECT buy_price FROM auction_items 
+                WHERE item_option = ? AND buy_price > 0
+                ORDER BY created_at DESC LIMIT 1
+            ''', (option_name,))
+            
+            result = cursor.fetchone()
+            
+            # 결과가 있으면 가격(int) 반환, 없으면 None 반환
+            return result[0] if result else None

@@ -1,5 +1,9 @@
 import requests
 import discord
+import sqlite3
+import pandas as pd
+import matplotlib.pyplot as plt
+import io
 from database import AuctionDB
 from datetime import time
 from discord.ext import tasks, commands
@@ -7,7 +11,7 @@ from config import API_KEY
 
     # 경매장 검색
     # Acc에 따라 검색(목걸이, 귀걸이, 반지)
-    # 각 악세 별 상중, 중상, 상상 악세를 검색
+    # 각 악세별 상상상 악세를 호출
     # 악세별 힘민지가 다르므로 payload를 악세별로 작성해서 여러번 전송
 async def search_lostark_auction(acc, base, option1, value1, option2, value2, option3, value3):
     url = "https://developer-lostark.game.onstove.com/auctions/items"
@@ -103,6 +107,7 @@ class AuctionCog(commands.Cog):
         self.auction_acc.start()
         
     scheduled_times = [time(hour=h, minute=0, second=0) for h in range(24)]
+    # time=scheduled_times / minutes=1
     @tasks.loop(time=scheduled_times)
     async def auction_acc(self):
         print("악세 검색 시작")
@@ -152,49 +157,69 @@ class AuctionCog(commands.Cog):
         ]
         msg = "📢 현재 딜러 악세 알림!\n"
         for deal_search, acc_name in zip(deal_search_list, deal_acc_name_list):
-            # 1. API 호출 (이제 딕셔너리 혹은 None을 반환함)
+            # 1. DB에서 직전 가격 확인
+            last_price = self.db.get_last_price(acc_name)
+            print(last_price)
+            
+            # 2. API 호출
             item_info = await search_lostark_auction(*deal_search)
             
-            # 2. 결과 처리
             if item_info:
-                name = item_info['name']
                 price = item_info['price']
-                
-                # DB 저장 (수동으로 정한 acc_name과 API에서 가져온 price 저장)
                 self.db.insert_price(acc_name, price)
                 
-                # 메시지 추가
                 if price > 0:
-                    msg += f"✅ {acc_name}: {price}G\n"
+                    if last_price is None or last_price == 0:
+                        change_emoji = "✅" 
+                        diff_text = ""
+                    elif price > last_price:
+                        # 가격 상승: 빨간 삼각형
+                        change_emoji = "🔺"
+                        diff_text = f" (▲{price - last_price})"
+                    elif price < last_price:
+                        # 가격 하락: 파란색 아래 화살표 (:arrow_down_small:)
+                        change_emoji = "🔽" 
+                        diff_text = f" (▼{last_price - price})"
+                    else:
+                        change_emoji = "➖"
+                        diff_text = ""
+                    
+                    msg += f"{change_emoji} {acc_name}: {price}G{diff_text}\n"
                 else:
                     msg += f"❌ {acc_name}: 매물 없음\n"
-                    
-            else:
-                # API 오류 등 None이 반환된 경우
-                msg += f"⚠️ {acc_name}: 데이터 호출 실패\n"
 
-        msg += "📢 현재 서폿 악세 알림!\n"
+        msg += "\n📢 현재 서폿 악세 알림!\n"
         for heal_search, acc_name in zip(heal_search_list, heal_acc_name_list):
-            # 1. API 호출 (이제 딕셔너리 혹은 None을 반환함)
+            # 1. DB에서 직전 가격 확인
+            last_price = self.db.get_last_price(acc_name)
+            print(last_price)
+            
+            # 2. API 호출
             item_info = await search_lostark_auction(*heal_search)
             
-            # 2. 결과 처리
             if item_info:
-                name = item_info['name']
                 price = item_info['price']
-                
-                # DB 저장 (수동으로 정한 acc_name과 API에서 가져온 price 저장)
                 self.db.insert_price(acc_name, price)
                 
-                # 메시지 추가
                 if price > 0:
-                    msg += f"✅ {acc_name}: {price}G\n"
+                    if last_price is None or last_price == 0:
+                        change_emoji = "✅" 
+                        diff_text = ""
+                    elif price > last_price:
+                        # 가격 상승: 빨간 삼각형
+                        change_emoji = "🔺"
+                        diff_text = f" (▲{price - last_price})"
+                    elif price < last_price:
+                        # 가격 하락: 파란색 아래 화살표 (:arrow_down_small:)
+                        change_emoji = "🔽" 
+                        diff_text = f" (▼{last_price - price})"
+                    else:
+                        change_emoji = "➖"
+                        diff_text = ""
+                    
+                    msg += f"{change_emoji} {acc_name}: {price}G{diff_text}\n"
                 else:
                     msg += f"❌ {acc_name}: 매물 없음\n"
-                    
-            else:
-                # API 오류 등 None이 반환된 경우
-                msg += f"⚠️ {acc_name}: 데이터 호출 실패\n"
         
         for guild in self.bot.guilds:
             target_channel = discord.utils.get(guild.text_channels, name="알림") #서버의 채널 이름에 "알림"이 포함되어있어야 한다.
@@ -204,6 +229,78 @@ class AuctionCog(commands.Cog):
                     await target_channel.send(msg) #목표 채널에 메시지를 전송
                 except Exception as e:
                     print(f"{guild.name}에 메시지를 보내지 못했습니다: {e}")
+
+    # DB값 가져와서 데이터프레임으로 변환하기
+    def get_df_from_db(self, item_option=None):
+        conn = sqlite3.connect(self.db.db_path)
+        
+        if item_option:
+            query = "SELECT item_option, buy_price, created_at FROM auction_items WHERE item_option = ? ORDER BY created_at ASC"
+            df = pd.read_sql_query(query, conn, params=(item_option,))
+        else:
+            query = "SELECT item_option, buy_price, created_at FROM auction_items ORDER BY created_at ASC"
+            df = pd.read_sql_query(query, conn)
+            
+        conn.close()
+        df['created_at'] = pd.to_datetime(df['created_at'])
+        return df
+
+    # 데이터프레임으로 선그래프 이미지 생성
+    def generate_graph(self, df, title_suffix=""):
+        # 1. 한글 폰트 설정 (윈도우의 경우 'Malgun Gothic'이 기본입니다)
+        plt.rcParams['font.family'] = 'Malgun Gothic'
+    
+        # 2. 마이너스 기호 깨짐 방지 (가격 변동 시 혹시 모를 마이너스 표시 대비)
+        plt.rcParams['axes.unicode_minus'] = False
+
+        plt.figure(figsize=(10, 6))
+        
+        # 옵션별 그룹핑 시각화
+        for option, group in df.groupby('item_option'):
+            plt.plot(group['created_at'], group['buy_price'], marker='o', label=option)
+
+        plt.title(f'로스트아크 악세 시세 변동 {title_suffix}')
+        plt.xlabel('시간')
+        plt.ylabel('구매 가격 (Gold)')
+        plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        plt.grid(True, linestyle='--', alpha=0.5)
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        plt.close()
+        return buf
+
+    @commands.command(name="시세")
+    async def send_price_chart(self, ctx, *, option: str = None):
+        async with ctx.typing():
+            try:
+                # 1. 데이터 가져오기
+                df = self.get_df_from_db(option)
+
+                if df.empty:
+                    return await ctx.send(f"❌ `{option if option else '데이터'}`를 찾을 수 없습니다.")
+
+                # 2. 그래프 생성
+                title_label = f"({option})" if option else "(전체)"
+                image_buf = self.generate_graph(df, title_label)
+                
+                # 3. 디스코드 전송
+                file = discord.File(fp=image_buf, filename="price_chart.png")
+                embed = discord.Embed(
+                    title="⚖️ 경매장 시세 변동 리포트",
+                    description=f"대상: **{option if option else '전체 수집 아이템'}**",
+                    color=0xFFBB00
+                )
+                embed.set_image(url="attachment://price_chart.png")
+                embed.set_footer(text="Lost Ark Market Tracker")
+
+                await ctx.send(embed=embed, file=file)
+
+            except Exception as e:
+                await ctx.send(f"⚠️ 그래프 생성 중 오류가 발생했습니다: {e}")
 
 async def setup(bot):
     await bot.add_cog(AuctionCog(bot))
