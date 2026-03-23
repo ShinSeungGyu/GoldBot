@@ -1,6 +1,9 @@
 test.py
 .json
 
+#font 파일
+.ttf
+
 # Python 컴파일 파일
 __pycache__/
 *.pyc
