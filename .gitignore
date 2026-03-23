@@ -1,4 +1,5 @@
 test.py
+.json
 
 # Python 컴파일 파일
 __pycache__/
