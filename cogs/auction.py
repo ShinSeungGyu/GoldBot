@@ -122,12 +122,12 @@ class AuctionCog(commands.Cog):
             [200030, 10962, 49, 155, 50, 400, 53, 390]   #반지 치적상 치피상 공+상 (최저가)
         ]
         deal_acc_name_list = [
-            "목걸이 상상상",
-            "목걸이 상상상(힘민지 최저)",
-            "귀걸이 상상상",
-            "귀걸이 상상상(힘민지 최저)",
-            "반지 상상상",
-            "반지 상상상(힘민지 최저)"
+            "딜러 목걸이 상상상",
+            "딜러 목걸이 상상상(힘민지 최저)",
+            "딜러 귀걸이 상상상",
+            "딜러 귀걸이 상상상(힘민지 최저)",
+            "딜러 반지 상상상",
+            "딜러 반지 상상상(힘민지 최저)"
         ]
         heal_search_list = [
             [200010, 17000, 43, 600, 44, 800, 54, 960],     #목걸이 상상 무공+상
@@ -144,16 +144,16 @@ class AuctionCog(commands.Cog):
             [200030, 10962, 51, 500, 52, 750, 55, 6500]    #반지 상상 최생+상 (최저가)
         ]
         heal_acc_name_list = [
-            "목걸이 상상 무공+",
-            "목걸이 상상 최생+(힘민지 최저)",
-            "목걸이 상상 최생+",
-            "목걸이 상상 최생+(힘민지 최저)",
-            "귀걸이 상 무공+상 최생+상",
-            "귀걸이 상 무공+상 최생+상(힘민지 최저) : ",
-            "반지 상상 무공+상",
-            "반지 상상 무공+상(힘민지 최저)",
-            "반지 상상 최생+상",
-            "반지 상상 최생+상(힘민지 최저)"
+            "서폿 목걸이 상상 무공+",
+            "서폿 목걸이 상상 최생+(힘민지 최저)",
+            "서폿 목걸이 상상 최생+",
+            "서폿 목걸이 상상 최생+(힘민지 최저)",
+            "서폿 귀걸이 상 무공+상 최생+상",
+            "서폿 귀걸이 상 무공+상 최생+상(힘민지 최저) : ",
+            "서폿 반지 상상 무공+상",
+            "서폿 반지 상상 무공+상(힘민지 최저)",
+            "서폿 반지 상상 최생+상",
+            "서폿 반지 상상 최생+상(힘민지 최저)"
         ]
         msg = "📢 현재 딜러 악세 알림!\n"
         for deal_search, acc_name in zip(deal_search_list, deal_acc_name_list):
@@ -222,7 +222,7 @@ class AuctionCog(commands.Cog):
                     msg += f"❌ {acc_name}: 매물 없음\n"
         
         for guild in self.bot.guilds:
-            target_channel = discord.utils.get(guild.text_channels, name="알림") #서버의 채널 이름에 "알림"이 포함되어있어야 한다.
+            target_channel = discord.utils.get(guild.text_channels, name="시세") #서버의 채널 이름에 "악세"이 포함되어있어야 한다.
             print(msg)
             if target_channel:
                 try:
@@ -233,10 +233,11 @@ class AuctionCog(commands.Cog):
     # DB값 가져와서 데이터프레임으로 변환하기
     def get_df_from_db(self, item_option=None):
         conn = sqlite3.connect(self.db.db_path)
+        search_term = f"%{item_option}%"
         
         if item_option:
-            query = "SELECT item_option, buy_price, created_at FROM auction_items WHERE item_option = ? ORDER BY created_at ASC"
-            df = pd.read_sql_query(query, conn, params=(item_option,))
+            query = "SELECT item_option, buy_price, created_at FROM auction_items WHERE item_option like ? ORDER BY created_at ASC"
+            df = pd.read_sql_query(query, conn, params=(search_term,))
         else:
             query = "SELECT item_option, buy_price, created_at FROM auction_items ORDER BY created_at ASC"
             df = pd.read_sql_query(query, conn)

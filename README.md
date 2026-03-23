@@ -17,3 +17,5 @@ Framework: discord.ext.tasks, discord.ext.commands
 | 명령어 | 설명 |
 | --- | --- |
 | !쌀섬 | 당일 존재하는 골드섬을 확인 할 수 있습니다. |
+| --- | --- |
+| --- | --- |
