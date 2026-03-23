@@ -3,11 +3,15 @@ import discord
 import sqlite3
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import io
+import os
 from database import AuctionDB
 from datetime import time
 from discord.ext import tasks, commands
 from config import API_KEY
+
+
 
     # 경매장 검색
     # Acc에 따라 검색(목걸이, 귀걸이, 반지)
@@ -248,33 +252,53 @@ class AuctionCog(commands.Cog):
 
     # 데이터프레임으로 선그래프 이미지 생성
     def generate_graph(self, df, title_suffix=""):
-        # 1. 한글 폰트 설정 (윈도우의 경우 'Malgun Gothic'이 기본입니다)
-        plt.rcParams['font.family'] = 'Malgun Gothic'
-    
-        # 2. 마이너스 기호 깨짐 방지 (가격 변동 시 혹시 모를 마이너스 표시 대비)
-        plt.rcParams['axes.unicode_minus'] = False
 
-        plt.figure(figsize=(10, 6))
+        font_path = '/home/container/font/NanumGothic.ttf'
+        
+        # 폰트 설정 초기화
+        fp = None
+        if os.path.isfile(font_path):
+            # 1. 폰트 파일 객체 생성 (이 객체를 직접 주입해야 함)
+            fp = fm.FontProperties(fname=font_path)
+            print(f"✅ 폰트 로드 성공: {fp.get_name()}")
+        else:
+            print(f"❌ 폰트 파일을 찾을 수 없습니다: {font_path}")
+
+        plt.figure(figsize=(12, 6)) # 범례 공간을 위해 가로를 조금 더 넓혔습니다.
         
         # 옵션별 그룹핑 시각화
         for option, group in df.groupby('item_option'):
+            # 레이블(label)에 한글이 들어갈 수 있으므로 범례 설정 시 중요함
             plt.plot(group['created_at'], group['buy_price'], marker='o', label=option)
 
-        plt.title(f'로스트아크 악세 시세 변동 {title_suffix}')
-        plt.xlabel('시간')
-        plt.ylabel('구매 가격 (Gold)')
-        plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+        # 2. 모든 텍스트 요소에 fontproperties=fp 적용
+        if fp:
+            plt.title(f'로스트아크 악세 시세 변동 {title_suffix}', fontproperties=fp, fontsize=16)
+            plt.xlabel('시간', fontproperties=fp)
+            plt.ylabel('구매 가격 (Gold)', fontproperties=fp)
+            
+            # 축 눈금(Ticks) 한글 깨짐 방지
+            plt.xticks(rotation=45, fontproperties=fp)
+            plt.yticks(fontproperties=fp)
+            
+            # 범례(Legend) 한글 깨짐 방지
+            plt.legend(loc='upper left', bbox_to_anchor=(1, 1), prop=fp)
+        else:
+            # 폰트 로드 실패 시 기본 설정
+            plt.title(f'Lost Ark Market {title_suffix}')
+            plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+
         plt.grid(True, linestyle='--', alpha=0.5)
-        plt.xticks(rotation=45)
         plt.tight_layout()
 
         buf = io.BytesIO()
-        plt.savefig(buf, format='png')
+        # savefig 시에도 다시 한 번 폰트 체크
+        plt.savefig(buf, format='png', bbox_inches='tight') 
         buf.seek(0)
         plt.close()
         return buf
 
-    @commands.command(name="시세")
+    @commands.command(name="시세") #임베드 이용
     async def send_price_chart(self, ctx, *, option: str = None):
         async with ctx.typing():
             try:
@@ -290,7 +314,7 @@ class AuctionCog(commands.Cog):
                 
                 # 3. 디스코드 전송
                 file = discord.File(fp=image_buf, filename="price_chart.png")
-                embed = discord.Embed(
+                embed = discord.Embed( #임베드 설정
                     title="⚖️ 경매장 시세 변동 리포트",
                     description=f"대상: **{option if option else '전체 수집 아이템'}**",
                     color=0xFFBB00
