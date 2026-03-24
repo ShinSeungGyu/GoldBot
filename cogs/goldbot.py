@@ -15,6 +15,7 @@ class GoldIslandCog(commands.Cog):
         # Cog가 내려갈 때 루프를 종료합니다.
         self.check_islands.cancel()
 
+    #로스트아크 API - 골드 섬
     def get_gold_islands(self):
         url = 'https://developer-lostark.game.onstove.com/gamecontents/calendar'
         headers = {'accept': 'application/json', 'authorization': API_KEY}
