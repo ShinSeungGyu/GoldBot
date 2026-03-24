@@ -7,9 +7,9 @@ import matplotlib.font_manager as fm
 import io
 import os
 from database import AuctionDB
-from datetime import time
+from datetime import time, datetime
 from discord.ext import tasks, commands
-from config import API_KEY
+from config import API_KEY, kst
 
 
 
@@ -172,23 +172,26 @@ class AuctionCog(commands.Cog):
                 price = item_info['price']
                 self.db.insert_price(acc_name, price)
                 
-                if price > 0:
+                if price is not None and price > 0:
                     if last_price is None or last_price == 0:
                         change_emoji = "✅" 
                         diff_text = ""
                     elif price > last_price:
                         # 가격 상승: 빨간 삼각형
                         change_emoji = "🔺"
-                        diff_text = f" (▲{price - last_price})"
+                        # 계산 결과 뒤에 : , 를 붙여 콤마 추가
+                        diff_text = f" (▲{price - last_price:,})" #{n:,} >> 천 단위 콤마 추가, {n:.2f} >> 소수점 둘째 자리까지 반올림, {n:,.0f} >> 콤마를 찍으면서 소수점 없앰
                     elif price < last_price:
-                        # 가격 하락: 파란색 아래 화살표 (:arrow_down_small:)
+                        # 가격 하락: 파란색 아래 화살표
                         change_emoji = "🔽" 
-                        diff_text = f" (▼{last_price - price})"
+                        # 계산 결과 뒤에 : , 를 붙여 콤마 추가
+                        diff_text = f" (▼{last_price - price:,})"
                     else:
                         change_emoji = "➖"
                         diff_text = ""
                     
-                    msg += f"{change_emoji} {acc_name}: {price}G{diff_text}\n"
+                    # price 변수 뒤에 :, 를 붙여 콤마 추가
+                    msg += f"{change_emoji} {acc_name}: {price:,}G{diff_text}\n"
                 else:
                     msg += f"❌ {acc_name}: 매물 없음\n"
 
@@ -205,32 +208,50 @@ class AuctionCog(commands.Cog):
                 price = item_info['price']
                 self.db.insert_price(acc_name, price)
                 
-                if price > 0:
+                if price is not None and price > 0:
                     if last_price is None or last_price == 0:
                         change_emoji = "✅" 
                         diff_text = ""
                     elif price > last_price:
                         # 가격 상승: 빨간 삼각형
                         change_emoji = "🔺"
-                        diff_text = f" (▲{price - last_price})"
+                        # 계산 결과 뒤에 : , 를 붙여 콤마 추가
+                        diff_text = f" (▲{price - last_price:,})"
                     elif price < last_price:
-                        # 가격 하락: 파란색 아래 화살표 (:arrow_down_small:)
+                        # 가격 하락: 파란색 아래 화살표
                         change_emoji = "🔽" 
-                        diff_text = f" (▼{last_price - price})"
+                        # 계산 결과 뒤에 : , 를 붙여 콤마 추가
+                        diff_text = f" (▼{last_price - price:,})"
                     else:
                         change_emoji = "➖"
                         diff_text = ""
                     
-                    msg += f"{change_emoji} {acc_name}: {price}G{diff_text}\n"
+                    # price 변수 뒤에 :, 를 붙여 콤마 추가
+                    msg += f"{change_emoji} {acc_name}: {price:,}G{diff_text}\n"
                 else:
                     msg += f"❌ {acc_name}: 매물 없음\n"
         
+        print(msg)
+        now_str = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S')
         for guild in self.bot.guilds:
-            target_channel = discord.utils.get(guild.text_channels, name="시세") #서버의 채널 이름에 "악세"이 포함되어있어야 한다.
-            print(msg)
+            # 서버에서 "최저가"라는 이름의 텍스트 채널 찾기
+            target_channel = discord.utils.get(guild.text_channels, name="최저가")
             if target_channel:
                 try:
-                    await target_channel.send(msg) #목표 채널에 메시지를 전송
+                    # 1. 임베드 객체 생성
+                    # title: 제목, description: 내용(여기에 msg가 들어감), color: 왼쪽 띠 색상
+                    embed = discord.Embed(
+                        title="💰 실시간 최저가 시세 알림",
+                        description=msg, 
+                        color=discord.Color.gold() # 골드색 (또는 .blue(), .green() 등 선택 가능)
+                    )
+                    
+                    # (선택 사항) 하단에 업데이트 시간 표시
+                    embed.set_footer(text=f"마지막 업데이트: {now_str} (KST)")
+
+                    # 2. 임베드 전송 (content 대신 embed 인자를 사용합니다)
+                    await target_channel.send(embed=embed)
+                    
                 except Exception as e:
                     print(f"{guild.name}에 메시지를 보내지 못했습니다: {e}")
 
@@ -298,7 +319,7 @@ class AuctionCog(commands.Cog):
         plt.close()
         return buf
 
-    @commands.command(name="시세") #임베드 이용
+    @commands.command(name="경매장") #임베드 이용
     async def send_price_chart(self, ctx, *, option: str = None):
         async with ctx.typing():
             try:

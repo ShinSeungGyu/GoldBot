@@ -61,7 +61,7 @@ class GoldIslandCog(commands.Cog):
                 except Exception as e:
                     print(f"{guild.name} 전송 실패: {e}")
 
-    @commands.command(name="알림")
+    @commands.command(name="골드섬")
     async def check_gold_islands_now(self, ctx):
         """현재 시각을 기준으로 골드섬 정보를 즉시 출력합니다."""
         islands = self.get_gold_islands()
