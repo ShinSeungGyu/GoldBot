@@ -14,6 +14,16 @@
 - Library: discord.py (v2.0+)
 - Framework: discord.ext.tasks, discord.ext.commands
 
+# 디스코드 설정
+- 설치 
+    - 설치환경 : 사용자 설치, 길드 설치
+    - 기본 설치 설정 / 길드 설치 > 스코프:bot, 권한:관리자 부여
+- 봇
+ - 인증과정 > 공개 봇 on
+ - Privileged Gateway Intents
+    - Presence Intent : 사용자의 온라인 상태, 커스텀 상태 메시지, 활동 정보 등을 실시간으로 가져오는 권한
+    - Server Members Intent : 서버의 전체 멤버 목록이나 멤버 관련 특정 이벤트(입/퇴장, 프로필 변경 등)에 접근하는 권한
+    - Message Content Intent : 봇이 서버 내에 전송되는 메시지의 실제 내용(텍스트, 임베드, 첨부파일 등)에 접근하는 권한 >> on
 
 # 📋 주요 명령어
 | 명령어 | 설명 | 
