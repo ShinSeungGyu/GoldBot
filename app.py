@@ -11,7 +11,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 # 2. Cog 로드 함수
 async def load_extensions():
     # cogs 폴더 안에 있는 goldbot.py와 auction.py를 불러옵니다.
-    # 파일명이 cogs/goldbot.py, cogs/auction.py 라고 가정합니다.
+    # 파일명이 cogs/calendar.py, cogs/auction.py 라고 가정합니다.
     extensions = ['cogs.calendar', 'cogs.auction']
     for ext in extensions:
         await bot.load_extension(ext)
