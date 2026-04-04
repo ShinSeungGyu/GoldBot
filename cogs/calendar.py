@@ -1,7 +1,8 @@
 import discord
 import requests
+import asyncio
 from discord.ext import tasks, commands
-from datetime import datetime
+from datetime import datetime, timedelta
 from config import API_KEY, kst, ten_thirty_time, voyage_times
 
 
@@ -81,24 +82,81 @@ class CalendarCog(commands.Cog):
             print(f"오류 발생: {e}")
             return None
 
-    @tasks.loop(time=ten_thirty_time) #매일 10시 30분
+    async def broadcast_embed(self, embed, chname="알림"):
+        #모든 서버의 특정 이름을 가진 채널로 임베드 전송
+        tasks = []
+        for guild in self.bot.guilds:
+            target_channel = discord.utils.get(guild.text_channels, name=chname)
+            if target_channel:
+                # 개별 전송을 코루틴으로 생성
+                tasks.append(self._safe_send(target_channel, embed))
+        
+        if tasks:
+            # 동시에 전송 시작
+            await asyncio.gather(*tasks)
+
+    async def _safe_send(self, channel, embed):
+        """권한 체크를 포함한 안전한 전송"""
+        # 봇에게 '메시지 보내기'와 '임베드 링크' 권한이 있는지 확인
+        perms = channel.permissions_for(channel.guild.me)
+        if not (perms.send_messages and perms.embed_links):
+            return
+
+        try:
+            await channel.send(embed=embed)
+        except Exception as e:
+            print(f"[{channel.guild.name}] 전송 실패: {e}")
+                    
+    @tasks.loop(time=ten_thirty_time)
     async def check_islands(self):
-        #매일 지정된 시간에 골드섬 알림 전송
         islands = self.get_calenders(categoryName="모험 섬")
         
         if not islands:
-            msg = "📢 금일 골드섬은 없습니다."
-        else:
-            msg = "📢 오늘의 골드섬 알림!\n" + "\n".join(islands)
+            embed = discord.Embed(
+                title="🏝️ 모험 섬 출현 알림",
+                description="금일 예정된 골드 섬이 존재하지 않습니다. 😢",
+                color=discord.Color.red()
+            )
+            await self.broadcast_embed(embed) # 중복 코드 한 줄로 해결
+            return
 
-        for guild in self.bot.guilds:
-            target_channel = discord.utils.get(guild.text_channels, name="알림")
-            if target_channel:
-                try:
-                    await target_channel.send(msg)
-                except Exception as e:
-                    print(f"{guild.name} 전송 실패: {e}")
+        for entry in islands:
+            try:
+                name, time_str = entry.split(" - ")
+                event_time = datetime.fromisoformat(time_str).replace(tzinfo=kst)
+                alert_time = event_time - timedelta(minutes=10)
+                
+                now = datetime.now(kst)
+                delay = (alert_time - now).total_seconds()
 
+                if delay > 0:
+                    self.bot.loop.create_task(self.scheduled_island_alert(delay, name, event_time))
+            except Exception as e:
+                print(f"파싱 에러: {e}")
+
+
+    async def scheduled_island_alert(self, delay, island_name, event_time):
+        await asyncio.sleep(delay)
+        
+        embed = discord.Embed(
+            title="🏝️ 모험 섬 출현 알림",
+            description=f"잠시 후 **{island_name}**이(가) 시작됩니다!",
+            color=discord.Color.gold()
+        )
+        embed.add_field(name="시작 시간", value=f"🕒 {event_time.strftime('%H:%M')}", inline=False)
+        embed.set_footer(text="골드 보상이 포함된 섬입니다.")
+
+        await self.broadcast_embed(embed) # 중복 코드 한 줄로 해결
+
+    @check_islands.before_loop
+    async def before_check(self):
+        # 1. 봇이 완전히 연결될 때까지 대기
+        await self.bot.wait_until_ready()
+        # 2. 봇이 켜진 직후, 오늘 남은 일정을 즉시 체크하여 예약
+        print("봇 재시작 감지: 현재 시간 기준으로 일정을 즉시 체크합니다.")
+        await self.check_islands()
+
+    
     @commands.command(name="골드섬")
     async def check_gold_islands_now(self, ctx):
         #현재 시각을 기준으로 골드섬 정보를 즉시 출력합니다.
@@ -108,23 +166,37 @@ class CalendarCog(commands.Cog):
             msg = "📢 **현재 확인 가능한 골드섬 정보입니다:**\n" + "\n".join(islands)
             await ctx.send(msg)
         else:
-            await ctx.send("현재 확인 가능한 골드섬이 없습니다. 😢 테스트")
+            await ctx.send("현재 확인 가능한 골드섬이 없습니다. 😢")
 
-    @tasks.loop(time=voyage_times) #매일 19/21/23시 10분 마다 동작
+    @tasks.loop(time=voyage_times) # 매일 지정된 시간(19, 21, 23시 10분 등)에 동작
     async def check_voyage_times(self):
-        voyage_times = self.get_calenders(categoryName="항해")
-        if not voyage_times:
-            msg = "📢 금일 항해 일정은 없습니다."
+        voyage_data = self.get_calenders(categoryName="항해")
+        
+        if not voyage_data:
+            # 일정이 없을 경우의 임베드
+            embed = discord.Embed(
+                title="⚓ 항해 협동 알림",
+                description="오늘 예정된 항해 일정이 없습니다. 🌊",
+                color=discord.Color.red()
+            )
         else:
-            msg = "📢 항해 협동 알림!\n" + "\n".join(voyage_times)
+            # 일정이 있을 경우의 임베드
+            embed = discord.Embed(
+                title="⚓ 항해 협동 알림",
+                description="잠시 후 항해 협동 퀘스트가 시작됩니다!",
+                color=discord.Color.blue()
+            )
+            # 리스트 내용을 예쁘게 합쳐서 필드에 추가
+            voyage_list = "\n".join(voyage_data)
+            embed.add_field(name="오늘의 항해 일정", value=f"```\n{voyage_list}\n```", inline=False)
+            embed.set_footer(text="출항 준비를 서두르세요!")
 
-        for guild in self.bot.guilds:
-            target_channel = discord.utils.get(guild.text_channels, name="항해")
-            if target_channel:
-                try:
-                    await target_channel.send(msg)
-                except Exception as e:
-                    print(f"{guild.name} 전송 실패: {e}")
+        # 공용 함수를 사용하여 '항해' 채널로 전송
+        await self.broadcast_embed(embed, chname="항해")
+
+    @check_voyage_times.before_loop
+    async def before_voyage_check(self):
+        await self.bot.wait_until_ready()
 
 # app.py에서 이 파일을 로드하기 위한 설정
 async def setup(bot):
