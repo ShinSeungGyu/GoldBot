@@ -234,14 +234,14 @@ class AuctionCog(commands.Cog):
         print(msg)
         now_str = datetime.now(kst).strftime('%Y-%m-%d %H:%M:%S')
         for guild in self.bot.guilds:
-            # 서버에서 "최저가"라는 이름의 텍스트 채널 찾기
-            target_channel = discord.utils.get(guild.text_channels, name="최저가")
+            # 서버에서 "로아-악세"라는 이름의 텍스트 채널 찾기
+            target_channel = discord.utils.get(guild.text_channels, name="로아-악세")
             if target_channel:
                 try:
                     # 1. 임베드 객체 생성
                     # title: 제목, description: 내용(여기에 msg가 들어감), color: 왼쪽 띠 색상
                     embed = discord.Embed(
-                        title="💰 실시간 최저가 시세 알림",
+                        title="💰 실시간 악세 최저가 알림",
                         description=msg, 
                         color=discord.Color.gold() # 골드색 (또는 .blue(), .green() 등 선택 가능)
                     )
@@ -319,7 +319,7 @@ class AuctionCog(commands.Cog):
         plt.close()
         return buf
 
-    @commands.command(name="경매장") #임베드 이용
+    @commands.command(name="악세") #임베드 이용
     async def send_price_chart(self, ctx, *, option: str = None):
         async with ctx.typing():
             try:

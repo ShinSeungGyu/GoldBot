@@ -82,7 +82,8 @@ class CalendarCog(commands.Cog):
             print(f"오류 발생: {e}")
             return None
 
-    async def broadcast_embed(self, embed, chname="알림"):
+# 임메드 메시지
+    async def broadcast_embed(self, embed, chname="로아-골드섬"):
         #모든 서버의 특정 이름을 가진 채널로 임베드 전송
         tasks = []
         for guild in self.bot.guilds:
@@ -106,7 +107,8 @@ class CalendarCog(commands.Cog):
             await channel.send(embed=embed)
         except Exception as e:
             print(f"[{channel.guild.name}] 전송 실패: {e}")
-                    
+#----------------------------------------
+
     @tasks.loop(time=ten_thirty_time)
     async def check_islands(self):
         islands = self.get_calenders(categoryName="모험 섬")
@@ -119,6 +121,14 @@ class CalendarCog(commands.Cog):
             )
             await self.broadcast_embed(embed) # 중복 코드 한 줄로 해결
             return
+        else:
+            formatted_islands = "\n".join(islands)
+            embed = discord.Embed(
+                title="🏝️ 모험 섬 출현 알림",
+                description=formatted_islands, # 가공된 문자열을 전달
+                color=discord.Color.gold()
+            )
+            await self.broadcast_embed(embed)
 
         for entry in islands:
             try:
@@ -156,7 +166,6 @@ class CalendarCog(commands.Cog):
         print("봇 재시작 감지: 현재 시간 기준으로 일정을 즉시 체크합니다.")
         await self.check_islands()
 
-    
     @commands.command(name="골드섬")
     async def check_gold_islands_now(self, ctx):
         #현재 시각을 기준으로 골드섬 정보를 즉시 출력합니다.
@@ -167,6 +176,7 @@ class CalendarCog(commands.Cog):
             await ctx.send(msg)
         else:
             await ctx.send("현재 확인 가능한 골드섬이 없습니다. 😢")
+
 
     @tasks.loop(time=voyage_times) # 매일 지정된 시간(19, 21, 23시 10분 등)에 동작
     async def check_voyage_times(self):
@@ -186,13 +196,13 @@ class CalendarCog(commands.Cog):
                 description="잠시 후 항해 협동 퀘스트가 시작됩니다!",
                 color=discord.Color.blue()
             )
-            # 리스트 내용을 예쁘게 합쳐서 필드에 추가
+            # 리스트 내용을 합쳐서 필드에 추가
             voyage_list = "\n".join(voyage_data)
             embed.add_field(name="오늘의 항해 일정", value=f"```\n{voyage_list}\n```", inline=False)
             embed.set_footer(text="출항 준비를 서두르세요!")
 
         # 공용 함수를 사용하여 '항해' 채널로 전송
-        await self.broadcast_embed(embed, chname="항해")
+        await self.broadcast_embed(embed, chname="로아-항해")
 
     @check_voyage_times.before_loop
     async def before_voyage_check(self):
