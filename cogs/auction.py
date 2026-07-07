@@ -77,26 +77,27 @@ async def search_lostark_auction(acc, base, option1, value1, option2, value2, op
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(url, headers=headers, json=payload) as response:
-                if response.status_code == 200:
-                    result = response.json()
-                    items = result.get('Items', [])
+                if response.status == 200:
+                    # 💡 response.json() 앞에 await을 반드시 붙여야 합니다!
+                    result = await response.json()
+                    items = result.get('Items')
 
                     if not items:
                         print("검색된 아이템이 없습니다.")
-                        # 매물이 없으므로 이름은 유지하되 가격은 0으로 반환하거나 None 반환
                         return {"name": "검색 결과 없음", "price": 0}
 
                     # 첫 번째 아이템(최저가) 정보만 추출
                     item = items[0]
                     name = item.get('Name')
-                    # BuyPrice가 없으면 0으로 설정
-                    price = item.get('AuctionInfo', {}).get('BuyPrice', 0)
 
-                    # 리스트가 아닌 필요한 정보만 딱 담아서 반환
+                    # 💡 혹시 모를 None 에러 방지를 위해 안전하게 체이닝
+                    auction_info = item.get('AuctionInfo')
+                    price = auction_info.get('BuyPrice') if auction_info else 0
+
                     return {"name": name, "price": price}
 
                 else:
-                    print(f"Error: {response.status_code}")
+                    print(f"Error: {response.status}")
                     return None
 
     except Exception as e:
@@ -483,6 +484,7 @@ class AuctionCog(commands.Cog):
         )
 
     async def build_price_line(self, search, acc_name):
+        msg = ""
         last_price = self.db.get_last_price(acc_name)
         item_info = await search_lostark_auction(*search)
 
@@ -513,12 +515,13 @@ class AuctionCog(commands.Cog):
                 msg += f"{change_emoji} {acc_name}: {price:,}G{diff_text}\n"
             else:
                 msg += f"❌ {acc_name}: 매물 없음\n"
+
         return msg
 
     scheduled_times = [time(hour=h, minute=0, second=0) for h in range(24)]
     # time=scheduled_times / minutes=1
 
-    @tasks.loop(time=scheduled_times)
+    @tasks.loop(minutes=1)
     async def auction_acc(self):
         print("악세 검색 시작")
         deal_search_list = [
