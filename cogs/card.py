@@ -192,25 +192,97 @@ class CharacterCard(commands.Cog):
             [24, 24, width-24, height-24], radius=12, fill=0)
         card.paste(gold_grad, (0, 0), gold_mask)
 
-        # 5-3. 클래스 엠블럼
-        emb_cx, emb_cy = 375, 65
-        class_name = profile_data.get('CharacterClassName', '클래스명')
-        emblem_path = os.path.join(img_dir, "class", f"{class_name}.png")
-        target_emblem_size = (50, 50)
+        # 5-3. 우측 상단 클래스 서명 엠블럼 그래픽 경로 수정
+        emb_cx, emb_cy = 375, 65  # 엠블럼 중심 좌표
 
-        if os.path.exists(emblem_path):
+        # Decorations가 null이거나 Symbol이 null인 경우를 대비한 안전한 가져오기
+        decorations = profile_data.get('Decorations') or {}
+        symbol_url = decorations.get('Symbol')
+
+        class_name = profile_data.get('CharacterClassName', '클래스명')
+        # base_dir/img/class/클래스명.png
+        class_path = os.path.join(img_dir, "class", f"{class_name}.png")
+
+        target_emblem_size = (50, 50)
+        symbol_size = (105, 85)
+
+        # ----------------------------------------------------
+        # 1. [배경] URL로 받은 Symbol(직업 문양 장식) 먼저 그리기
+        # ----------------------------------------------------
+        if symbol_url:  # symbol_url이 None이거나 빈 문자열이 아닐 때만 실행
             try:
-                emblem_img = Image.open(emblem_path).convert('RGBA')
+                # 웹에서 이미지 다운로드
+                response = requests.get(symbol_url, timeout=5)
+                if response.status_code == 200:
+                    symbol_img = Image.open(
+                        BytesIO(response.content)).convert('RGBA')
+                    symbol_img = symbol_img.resize(
+                        symbol_size, Image.Resampling.LANCZOS)
+
+                    # 중심 좌표 기준 정렬 연산
+                    symbol_x = emb_cx - (symbol_size[0] // 2)
+                    symbol_y = emb_cy - (symbol_size[1] // 2)
+
+                    # 배경으로 먼저 붙이기 (마스크로 자기 자신을 지정하여 투명도 유지)
+                    card.paste(symbol_img, (symbol_x, symbol_y), symbol_img)
+            except Exception as e:
+                print(f"⚠️ URL 배경 엠블럼(Symbol) 로드 후 처리 도중 오류 발생: {e}")
+
+        # ----------------------------------------------------
+        # 2. [앞면] 기존 로컬 클래스 아이콘(.png) 위에 덮어쓰기
+        # ----------------------------------------------------
+        if os.path.exists(class_path):
+            try:
+                emblem_img = Image.open(class_path).convert('RGBA')
                 emblem_img = emblem_img.resize(
                     target_emblem_size, Image.Resampling.LANCZOS)
+
                 paste_x = emb_cx - (target_emblem_size[0] // 2)
-                paste_y = emb_cy - (target_emblem_size[1] // 2) - 2
+                # 기존 y축 미세조정(-2) 유지
+                paste_y = emb_cy - (target_emblem_size[1] // 2) + 3
+
+                # 먼저 그려진 Symbol 위에 클래스 아이콘이 올라갑니다.
                 card.paste(emblem_img, (paste_x, paste_y), emblem_img)
+
             except Exception as e:
                 print(f"⚠️ 클래스 엠블럼 이미지 로드 후 처리 도중 오류 발생: {e}")
         else:
-            draw.arc([emb_cx-12, emb_cy-12, emb_cx+12, emb_cy+12],
-                     start=0, end=360, fill=(210, 215, 225, 180), width=1)
+            print(f"⚠️ '{class_path}' 파일을 찾을 수 없습니다. 기본 그래픽으로 폴백합니다.")
+            # 만약 로컬 클래스 파일이 없을 때만 그리는 원형 폴백 (배경 Symbol이 없다면 섭섭하니까 원형 유지)
+            if not symbol_url:
+                draw.arc([emb_cx-12, emb_cy-12, emb_cx+12, emb_cy+12],
+                         start=0, end=360, fill=(210, 215, 225, 180), width=1)
+
+        emblems = decorations.get('Emblems') or []
+        # 휘장 배치 기본 설정
+        emblem_size = (45, 45)    # 휘장 크기 (직업 문양(50x50)보다 살짝 작게 설정하여 주객전도 방지)
+        start_y = 110             # 첫 번째 휘장이 시작될 Y 좌표 (직업 문양 배경(70x70)의 하단부 뒤)
+        emblem_spacing = 6        # 휘장과 휘장 사이의 세로 간격
+
+        for i, emblem_url in enumerate(emblems):
+            if not emblem_url:  # URL이 null이거나 비어있으면 패스
+                continue
+
+            try:
+                # 웹에서 휘장 이미지 다운로드
+                response = requests.get(emblem_url, timeout=5)
+                if response.status_code == 200:
+                    emblem_img = Image.open(
+                        BytesIO(response.content)).convert('RGBA')
+                    emblem_img = emblem_img.resize(
+                        emblem_size, Image.Resampling.LANCZOS)
+
+                    # X 좌표: 직업 문양의 중심(emb_cx)에 정확히 맞추어 중앙 정렬
+                    ex = emb_cx - (emblem_size[0] // 2) + 15
+
+                    # Y 좌표: 인덱스(i)가 늘어날 때마다 크기 + 간격만큼 아래로 이동
+                    ey = start_y + (i * (emblem_size[1] + emblem_spacing))
+
+                    # 카드에 투명도 마스크를 적용해 붙여넣기
+                    card.paste(emblem_img, (ex, ey), emblem_img)
+
+            except Exception as e:
+                print(f"⚠️ {i+1}번째 휘장 이미지 로드 후 처리 도중 오류 발생: {e}")
 
         # 6. 상단 서버 이름 뱃지
         bx1, by1, bx2, by2 = 36, 36, 115, 62
@@ -223,8 +295,9 @@ class CharacterCard(commands.Cog):
 
         # 7. 중앙 캐릭터 텍스트 정보
         text_start_y = 445
-        draw.text((48, text_start_y), profile_data.get(
-            'Title', '칭호 없음'), font=font_title, fill=(160, 165, 175, 255))
+        character_title = profile_data.get('Title') or ''
+        draw.text((48, text_start_y), character_title,
+                  font=font_title, fill=(160, 165, 175, 255))
         draw.text((46, text_start_y + 24), profile_data.get('CharacterName',
                   '캐릭터명'), font=font_name, fill=(255, 255, 255, 255))
 
