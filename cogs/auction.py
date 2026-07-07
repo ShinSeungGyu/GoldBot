@@ -521,7 +521,7 @@ class AuctionCog(commands.Cog):
     scheduled_times = [time(hour=h, minute=0, second=0) for h in range(24)]
     # time=scheduled_times / minutes=1
 
-    @tasks.loop(minutes=1)
+    @tasks.loop(time=scheduled_times)
     async def auction_acc(self):
         print("악세 검색 시작")
         deal_search_list = [
